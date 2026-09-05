@@ -15,7 +15,7 @@ export class IngestionService {
   }
 
   /**
-   * Ingests jobs from Greenhouse public JSON API (zero scraping overhead)
+   * Ingests all active jobs from Greenhouse public JSON API
    */
   public async fetchGreenhouseBoard(companySlug: string): Promise<number> {
     const endpoint = `https://boards-api.greenhouse.io/v1/boards/${companySlug}/jobs?content=true`;
@@ -62,7 +62,7 @@ export class IngestionService {
   }
 
   /**
-   * Ingests jobs from Lever public JSON API
+   * Ingests all active jobs from Lever public JSON API
    */
   public async fetchLeverBoard(companySlug: string): Promise<number> {
     const endpoint = `https://api.lever.co/v0/postings/${companySlug}?mode=json`;
@@ -108,11 +108,60 @@ export class IngestionService {
   }
 
   /**
-   * Triggers batch ingestion across default tech target companies
+   * Ingests all active jobs from Ashby public JSON API
+   */
+  public async fetchAshbyBoard(companySlug: string): Promise<number> {
+    const endpoint = `https://api.ashbyhq.com/posting-api/job-board/${companySlug}`;
+    let count = 0;
+
+    try {
+      const response = await axios.get<{ jobs: any[] }>(endpoint, { timeout: 10000 });
+      const jobs = response.data.jobs || [];
+
+      for (const job of jobs) {
+        const locationName = job.location || 'Remote';
+        const fingerprint = this.generateFingerprint(companySlug, job.title, locationName);
+
+        const existing = await prisma.jobPosting.findUnique({ where: { fingerprint } });
+        if (existing) continue;
+
+        const newJob = await prisma.jobPosting.create({
+          data: {
+            externalId: job.id,
+            fingerprint,
+            title: job.title,
+            company: companySlug,
+            location: locationName,
+            isRemote: locationName.toLowerCase().includes('remote'),
+            url: job.jobUrl || `https://jobs.ashbyhq.com/${companySlug}/${job.id}`,
+            atsPlatform: ATSPlatform.ASHBY,
+            description: job.descriptionHtml || job.title,
+            status: JobStatus.DISCOVERED,
+          },
+        });
+
+        await evaluateQueue.add('evaluate-job', { jobId: newJob.id });
+        count++;
+      }
+
+      console.log(`[Ingestion] Ingested ${count} new Ashby jobs for '${companySlug}'`);
+      return count;
+    } catch (error: any) {
+      console.error(`[Ingestion Error] Ashby fetch failed for '${companySlug}':`, error.message);
+      return 0;
+    }
+  }
+
+  /**
+   * Triggers comprehensive batch ingestion across 25+ major tech companies (Greenhouse, Lever, Ashby)
    */
   public async triggerBatchIngestion(): Promise<{ totalIngested: number }> {
-    const greenhouseSlugs = ['stripe', 'airbnb', 'figma', 'discord', 'vercel', 'hashicorp'];
-    const leverSlugs = ['netflix', 'palantir', 'cloudflare'];
+    const greenhouseSlugs = [
+      'stripe', 'airbnb', 'figma', 'discord', 'vercel', 'hashicorp', 'supabase',
+      'datadog', 'coinbase', 'doordash', 'uber', 'ramp', 'retool', 'slack', 'gitlab'
+    ];
+    const leverSlugs = ['netflix', 'palantir', 'cloudflare', 'spotify', 'postman'];
+    const ashbySlugs = ['openai', 'linear', 'notion', 'replit', 'cursor'];
 
     let total = 0;
     for (const slug of greenhouseSlugs) {
@@ -120,6 +169,9 @@ export class IngestionService {
     }
     for (const slug of leverSlugs) {
       total += await this.fetchLeverBoard(slug);
+    }
+    for (const slug of ashbySlugs) {
+      total += await this.fetchAshbyBoard(slug);
     }
 
     return { totalIngested: total };
