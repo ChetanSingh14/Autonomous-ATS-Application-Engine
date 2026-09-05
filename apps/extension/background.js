@@ -11,6 +11,30 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 /**
+ * Sends message to tab content script with automatic retry until content script listener is active
+ */
+async function sendMessageWithRetry(tabId, message, retries = 5) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await new Promise((resolve, reject) => {
+        chrome.tabs.sendMessage(tabId, message, (res) => {
+          const err = chrome.runtime.lastError;
+          if (err) {
+            return reject(err);
+          }
+          resolve(res);
+        });
+      });
+      console.log('[Extension Background] Message delivered to tab content script:', response);
+      return response;
+    } catch (err) {
+      console.log(`[Extension Background] Retry ${i + 1}/${retries} waiting for tab content script to initialize...`);
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+}
+
+/**
  * Polls the local API queue and triggers tab navigation + content script execution
  */
 async function processNextApplication() {
@@ -35,14 +59,14 @@ async function processNextApplication() {
       if (tabId === tab.id && changeInfo.status === 'complete') {
         chrome.tabs.onUpdated.removeListener(tabListener);
 
-        // Allow DOM scripts to complete initial rendering
-        setTimeout(() => {
-          chrome.tabs.sendMessage(tab.id, {
+        // Send message with automatic retry to handle content script loading delays
+        setTimeout(async () => {
+          await sendMessageWithRetry(tab.id, {
             action: 'EXECUTE_AUTOFILL',
             job,
             profile,
           });
-        }, 2500);
+        }, 2000);
       }
     });
   } catch (err) {
