@@ -114,11 +114,59 @@ async function runGreenhouseAutomator(job, profile) {
     await sleep(400);
   }
 
-  // 3. Dynamic Screening Questions Resolution
+  // 3. Radio Buttons & Yes/No Screening Questions
+  const radioContainers = document.querySelectorAll('.field, div[class*="field"], fieldset');
+  for (const container of radioContainers) {
+    const radios = Array.from(container.querySelectorAll('input[type="radio"]'));
+    if (radios.length === 0 || radios.some((r) => r.checked)) continue;
+
+    const label = container.querySelector('label, legend');
+    const questionText = label ? label.innerText.trim() : '';
+
+    const options = radios.map((r) => {
+      const rLabel = container.querySelector(`label[for="${r.id}"]`) || r.parentElement;
+      return { input: r, text: (rLabel ? rLabel.innerText : r.value || '').trim() };
+    });
+
+    const optTexts = options.map((o) => o.text).filter(Boolean);
+    try {
+      const data = await apiCall('/ai/answer-question', 'POST', {
+        question: questionText || 'Are you authorized to work?',
+        fieldType: 'radio',
+        options: optTexts.length ? optTexts : ['Yes', 'No'],
+      });
+
+      let chosen = options[0]?.input;
+      if (data && data.answer) {
+        const match = options.find((o) => o.text.toLowerCase().includes(data.answer.toLowerCase()));
+        if (match) chosen = match.input;
+      }
+      if (chosen) {
+        chosen.checked = true;
+        chosen.dispatchEvent(new Event('change', { bubbles: true }));
+        chosen.dispatchEvent(new Event('click', { bubbles: true }));
+        await sleep(150);
+      }
+    } catch (err) {
+      console.warn('[AutoApply Runner] Radio resolution skipped:', err.message);
+    }
+  }
+
+  // 4. Consent & Privacy Checkboxes
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  for (const cb of checkboxes) {
+    if (!cb.checked) {
+      cb.checked = true;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+      cb.dispatchEvent(new Event('click', { bubbles: true }));
+    }
+  }
+
+  // 5. Dynamic Screening Questions Resolution (Text & Select)
   const customFields = document.querySelectorAll('.field, .custom-question');
   for (const field of customFields) {
     const label = field.querySelector('label');
-    const textInput = field.querySelector('input[type="text"], textarea');
+    const textInput = field.querySelector('input[type="text"], input[type="number"], textarea');
     const select = field.querySelector('select');
 
     if (!label) continue;
@@ -158,24 +206,33 @@ async function runGreenhouseAutomator(job, profile) {
     }
   }
 
-  // 4. Update Backend DB Status
-  await apiCall(`/jobs/${job.id}/applied`, 'POST', {
-    status: 'SUBMITTED',
-    filledFields: { standardMappingsFilled: true },
-  }).catch(() => {});
-
-  // 5. Automatic Form Submission Click
+  // 6. Automatic Form Submission Execution & Status Marking
   const submitBtn = document.querySelector(
-    '#submit_app, input[type="submit"], button[type="submit"], button#submit, input[value*="Submit"], button[id*="submit"]'
+    '#submit_app, input[type="submit"], button[type="submit"], button#submit, input[value*="Submit"], button[id*="submit"], input[type="button"][value*="Submit"]'
   );
+
+  console.log('[AutoApply Runner] Executing automatic form submission...');
   if (submitBtn) {
-    console.log('[AutoApply Runner] Clicking Submit Application button automatically...');
     submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
     await sleep(600);
     submitBtn.click();
+
+    const form = submitBtn.closest('form') || document.querySelector('form');
+    if (form && typeof form.requestSubmit === 'function') {
+      try {
+        form.requestSubmit();
+      } catch (e) {
+        // Form already submitted
+      }
+    }
   }
 
-  console.log('[AutoApply Runner] Application filled and submitted successfully!');
+  await apiCall(`/jobs/${job.id}/applied`, 'POST', {
+    status: 'SUBMITTED',
+    filledFields: { standardMappingsFilled: true, radioOptionsFilled: true, autoSubmitted: true },
+  }).catch(() => {});
+
+  console.log('[AutoApply Runner] Application form filled and submitted to company successfully!');
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

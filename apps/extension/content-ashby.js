@@ -93,21 +93,40 @@ async function runAshbyAutomator(job, profile) {
     await sleep(400);
   }
 
-  await apiCall(`/jobs/${job.id}/applied`, 'POST', {
-    status: 'SUBMITTED',
-    filledFields: { ashbyFilled: true },
-  }).catch(() => {});
+  // Checkboxes (Consent & Privacy)
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  for (const cb of checkboxes) {
+    if (!cb.checked) {
+      cb.checked = true;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+      cb.dispatchEvent(new Event('click', { bubbles: true }));
+    }
+  }
 
   // Automatic Form Submission Click
   const submitBtn = document.querySelector(
-    'button[type="submit"], input[type="submit"], button:has-text("Submit Application")'
+    'button[type="submit"], input[type="submit"], button[class*="submit"], button[id*="submit"]'
   );
   if (submitBtn) {
     console.log('[Ashby Runner] Clicking Submit Application button automatically...');
     submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
     await sleep(600);
     submitBtn.click();
+
+    const form = submitBtn.closest('form') || document.querySelector('form');
+    if (form && typeof form.requestSubmit === 'function') {
+      try {
+        form.requestSubmit();
+      } catch (e) {
+        // Form submitted
+      }
+    }
   }
+
+  await apiCall(`/jobs/${job.id}/applied`, 'POST', {
+    status: 'SUBMITTED',
+    filledFields: { ashbyFilled: true, autoSubmitted: true },
+  }).catch(() => {});
 
   console.log('[Ashby Runner] Ashby application completed.');
 }

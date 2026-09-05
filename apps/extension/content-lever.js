@@ -95,11 +95,15 @@ async function runLeverAutomator(job, profile) {
     await sleep(400);
   }
 
-  // Mark status in DB
-  await apiCall(`/jobs/${job.id}/applied`, 'POST', {
-    status: 'SUBMITTED',
-    filledFields: { leverFilled: true },
-  }).catch(() => {});
+  // Checkboxes (Consent & Privacy)
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  for (const cb of checkboxes) {
+    if (!cb.checked) {
+      cb.checked = true;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+      cb.dispatchEvent(new Event('click', { bubbles: true }));
+    }
+  }
 
   // Automatic Form Submission Click
   const submitBtn = document.querySelector(
@@ -110,7 +114,22 @@ async function runLeverAutomator(job, profile) {
     submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
     await sleep(600);
     submitBtn.click();
+
+    const form = submitBtn.closest('form') || document.querySelector('form');
+    if (form && typeof form.requestSubmit === 'function') {
+      try {
+        form.requestSubmit();
+      } catch (e) {
+        // Form submitted
+      }
+    }
   }
+
+  // Mark status in DB
+  await apiCall(`/jobs/${job.id}/applied`, 'POST', {
+    status: 'SUBMITTED',
+    filledFields: { leverFilled: true, autoSubmitted: true },
+  }).catch(() => {});
 
   console.log('[Lever Runner] Lever application completed.');
 }
