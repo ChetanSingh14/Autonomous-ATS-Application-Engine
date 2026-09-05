@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [ingesting, setIngesting] = useState(false);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
   const fetchStats = async () => {
@@ -48,6 +49,27 @@ export default function DashboardPage() {
       console.error('Failed to fetch dashboard stats:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRejectJob = async (jobId: string) => {
+    setRejectingId(jobId);
+    try {
+      const res = await fetch(`http://localhost:4000/api/jobs/${jobId}/reject`, { method: 'POST' });
+      if (res.ok) {
+        // Remove or update job status in local state immediately
+        setStats((prev) => ({
+          ...prev,
+          queuedCount: Math.max(0, prev.queuedCount - 1),
+          rejectedCount: prev.rejectedCount + 1,
+          jobs: prev.jobs.map((j) => (j.id === jobId ? { ...j, status: 'REJECTED_LOW_SCORE' } : j)),
+        }));
+        await fetchStats();
+      }
+    } catch (err) {
+      console.error('Failed to reject job:', err);
+    } finally {
+      setRejectingId(null);
     }
   };
 
@@ -314,12 +336,33 @@ export default function DashboardPage() {
                     </td>
 
                     <td className="py-4 px-6 text-right">
-                      <Link
-                        href={`/jobs/${job.id}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-medium transition border border-slate-700"
-                      >
-                        Inspect Diffs
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        {job.status !== 'REJECTED_LOW_SCORE' && job.status !== 'SUBMITTED' && (
+                          <button
+                            onClick={() => handleRejectJob(job.id)}
+                            disabled={rejectingId === job.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-semibold transition disabled:opacity-50"
+                            title="Manually reject this job and remove from apply queue"
+                          >
+                            {rejectingId === job.id ? (
+                              'Rejecting...'
+                            ) : (
+                              <>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                Reject
+                              </>
+                            )}
+                          </button>
+                        )}
+                        <Link
+                          href={`/jobs/${job.id}`}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-medium transition border border-slate-700"
+                        >
+                          Inspect Diffs
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))

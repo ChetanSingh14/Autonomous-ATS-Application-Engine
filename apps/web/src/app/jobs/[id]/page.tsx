@@ -20,6 +20,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       .finally(() => setLoading(false));
   }, [jobId]);
 
+  const [rejecting, setRejecting] = useState(false);
+
+  const handleReject = async () => {
+    setRejecting(true);
+    try {
+      const res = await fetch(`http://localhost:4000/api/jobs/${jobId}/reject`, { method: 'POST' });
+      if (res.ok) {
+        setJob((prev: any) => ({ ...prev, status: 'REJECTED_LOW_SCORE' }));
+      }
+    } catch (err) {
+      console.error('Failed to reject job:', err);
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   if (loading) {
     return <div className="p-8 text-center text-slate-400">Loading Job Details...</div>;
   }
@@ -73,6 +89,16 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               {job.matchScore ? `${job.matchScore}%` : 'Evaluating'}
             </div>
           </div>
+
+          {job.status !== 'REJECTED_LOW_SCORE' && job.status !== 'SUBMITTED' && (
+            <button
+              onClick={handleReject}
+              disabled={rejecting}
+              className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-bold transition disabled:opacity-50"
+            >
+              {rejecting ? 'Rejecting...' : '🚫 Manual Reject Job'}
+            </button>
+          )}
 
           {job.tailoredPdf && (
             <button

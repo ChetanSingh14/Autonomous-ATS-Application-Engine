@@ -89,6 +89,30 @@ router.post('/jobs/:id/applied', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/jobs/:id/reject
+ * Manually rejects a job posting from the queue
+ */
+router.post('/jobs/:id/reject', async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const updatedJob = await prisma.jobPosting.update({
+      where: { id },
+      data: {
+        status: JobStatus.REJECTED_LOW_SCORE,
+        matchReason: 'Manually rejected by candidate from dashboard.',
+      },
+    });
+
+    console.log(`[API] Manually rejected job ${id}: ${updatedJob.title} at ${updatedJob.company}`);
+    return res.status(200).json({ success: true, job: updatedJob });
+  } catch (error: any) {
+    console.error(`[API Error] /jobs/${id}/reject:`, error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/jobs/dashboard-stats
  * Aggregates live application metrics and returns postings for dashboard
  */

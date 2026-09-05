@@ -71,16 +71,35 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   });
 }
 
+function isBlockingCaptchaPresent() {
+  const captchas = Array.from(
+    document.querySelectorAll(
+      'iframe[src*="recaptcha/api2/bframe"], iframe[src*="hcaptcha.com/captcha/v1/"], iframe[title*="recaptcha challenge"], iframe[title*="hCaptcha challenge"]'
+    )
+  );
+
+  return captchas.some((iframe) => {
+    const style = window.getComputedStyle(iframe);
+    const rect = iframe.getBoundingClientRect();
+    return (
+      style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      style.opacity !== '0' &&
+      rect.width > 200 &&
+      rect.height > 200
+    );
+  });
+}
+
 /**
  * Automated Greenhouse Form Filler Engine
  */
 async function runGreenhouseAutomator(job, profile) {
   console.log('[AutoApply Runner] Commencing Greenhouse form filling pipeline...');
 
-  // Check for CAPTCHA anti-bot challenges
-  const hasCaptcha = document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"]');
-  if (hasCaptcha) {
-    console.warn('[AutoApply Runner] CAPTCHA challenge detected! Flagging for manual review...');
+  // Check for active blocking CAPTCHA challenges
+  if (isBlockingCaptchaPresent()) {
+    console.warn('[AutoApply Runner] Active CAPTCHA challenge detected! Flagging for manual review...');
     await apiCall(`/jobs/${job.id}/applied`, 'POST', {
       status: 'REQUIRES_MANUAL_REVIEW',
       filledFields: { captchaDetected: true },
