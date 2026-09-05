@@ -33,6 +33,7 @@ export default function DashboardPage() {
     jobs: [],
   });
   const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
@@ -51,10 +52,12 @@ export default function DashboardPage() {
   };
 
   const fetchJobsByStatus = async (status: string) => {
+    setTableLoading(true);
     try {
-      const url = status === 'ALL'
-        ? 'http://localhost:4000/api/jobs'
-        : `http://localhost:4000/api/jobs?status=${status}`;
+      const url =
+        status === 'ALL'
+          ? 'http://localhost:4000/api/jobs'
+          : `http://localhost:4000/api/jobs?status=${status}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -62,6 +65,8 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Failed to fetch jobs by status:', err);
+    } finally {
+      setTableLoading(false);
     }
   };
 
@@ -72,6 +77,7 @@ export default function DashboardPage() {
   }, []);
 
   const handleTabChange = (status: string) => {
+    if (filterStatus === status && !tableLoading) return;
     setFilterStatus(status);
     fetchJobsByStatus(status);
   };
@@ -88,12 +94,31 @@ export default function DashboardPage() {
     }
   };
 
+  const getTabBadgeCount = (status: string) => {
+    switch (status) {
+      case 'ALL':
+        return stats.discoveredCount + stats.queuedCount + stats.submittedCount + stats.rejectedCount;
+      case 'QUEUED_FOR_APPLY':
+        return stats.queuedCount;
+      case 'SUBMITTED':
+        return stats.submittedCount;
+      case 'REJECTED_LOW_SCORE':
+        return stats.rejectedCount;
+      case 'DISCOVERED':
+        return stats.discoveredCount;
+      default:
+        return 0;
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Top Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Application Pipeline Overview</h1>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+            Application Pipeline Overview
+          </h1>
           <p className="text-slate-400 text-sm mt-1">
             Autonomous job ingestion, fit scoring, truth-constrained tailoring, and browser injection.
           </p>
@@ -103,7 +128,17 @@ export default function DashboardPage() {
           disabled={ingesting}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-semibold text-xs tracking-wide transition shadow-lg shadow-sky-900/30 disabled:opacity-50"
         >
-          {ingesting ? '⏳ Ingesting Board Feeds...' : '🚀 Ingest Target Job Boards Now'}
+          {ingesting ? (
+            <>
+              <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Ingesting Board Feeds...
+            </>
+          ) : (
+            '🚀 Ingest Target Job Boards Now'
+          )}
         </button>
       </div>
 
@@ -137,21 +172,44 @@ export default function DashboardPage() {
       {/* Filter Tabs & Queue Table */}
       <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
         <div className="p-4 sm:px-6 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="font-bold text-white text-base">Active Job Postings Pipeline</h2>
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {['ALL', 'QUEUED_FOR_APPLY', 'SUBMITTED', 'REJECTED_LOW_SCORE', 'DISCOVERED'].map((status) => (
-              <button
-                key={status}
-                onClick={() => handleTabChange(status)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                  filterStatus === status
-                    ? 'bg-slate-700 text-white shadow-md'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                }`}
-              >
-                {status.replace(/_/g, ' ')}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold text-white text-base">Active Job Postings Pipeline</h2>
+            {tableLoading && (
+              <span className="flex items-center gap-1.5 text-xs text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 rounded-full font-medium animate-pulse">
+                <svg className="animate-spin h-3 w-3 text-sky-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Filtering...
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            {['ALL', 'QUEUED_FOR_APPLY', 'SUBMITTED', 'REJECTED_LOW_SCORE', 'DISCOVERED'].map((status) => {
+              const count = getTabBadgeCount(status);
+              const isActive = filterStatus === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => handleTabChange(status)}
+                  disabled={tableLoading}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap ${
+                    isActive
+                      ? 'bg-sky-600 text-white shadow-md shadow-sky-900/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+                  } ${tableLoading ? 'opacity-60 cursor-wait' : ''}`}
+                >
+                  <span>{status.replace(/_/g, ' ')}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -167,10 +225,42 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {stats.jobs.length === 0 ? (
+              {tableLoading || loading ? (
+                // Skeleton loading rows
+                [1, 2, 3, 4].map((idx) => (
+                  <tr key={idx} className="animate-pulse">
+                    <td className="py-4 px-6">
+                      <div className="h-4 bg-slate-800 rounded w-48 mb-2"></div>
+                      <div className="h-3 bg-slate-800/60 rounded w-32"></div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="h-4 bg-slate-800 rounded w-12"></div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="h-5 bg-slate-800 rounded w-20"></div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="h-5 bg-slate-800 rounded w-28"></div>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <div className="h-7 bg-slate-800 rounded w-24 ml-auto"></div>
+                    </td>
+                  </tr>
+                ))
+              ) : stats.jobs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-500">
-                    No postings found matching status filter. Click "Ingest Target Job Boards Now" above.
+                  <td colSpan={5} className="py-12 text-center">
+                    <div className="inline-flex flex-col items-center justify-center space-y-2">
+                      <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                      </svg>
+                      <p className="text-slate-400 font-medium text-sm">
+                        No postings found matching status filter <span className="text-sky-400 font-mono">"{filterStatus}"</span>.
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Click "Ingest Target Job Boards Now" above or choose another filter.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
