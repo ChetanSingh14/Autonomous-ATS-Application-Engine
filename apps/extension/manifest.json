@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AutoApply Autonomous Agent",
-  "version": "1.0.0",
-  "description": "Autonomous ATS form filler and tailored resume injector.",
+  "version": "1.1.0",
+  "description": "Autonomous ATS form filler and tailored resume injector for Greenhouse, Lever, Ashby, LinkedIn, Internshala, Naukri, and Wellfound.",
   "permissions": [
     "storage",
     "activeTab",
@@ -15,6 +15,10 @@
     "*://job-boards.greenhouse.io/*",
     "*://jobs.lever.co/*",
     "*://*.ashbyhq.com/*",
+    "*://*.linkedin.com/*",
+    "*://*.internshala.com/*",
+    "*://*.naukri.com/*",
+    "*://*.wellfound.com/*",
     "http://localhost:4000/*"
   ],
   "background": {
@@ -42,6 +46,34 @@
         "*://*.ashbyhq.com/*"
       ],
       "js": ["content-ashby.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.linkedin.com/*"
+      ],
+      "js": ["content-linkedin.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.internshala.com/*"
+      ],
+      "js": ["content-internshala.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.naukri.com/*"
+      ],
+      "js": ["content-naukri.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.wellfound.com/*"
+      ],
+      "js": ["content-wellfound.js"],
       "run_at": "document_idle"
     }
   ],

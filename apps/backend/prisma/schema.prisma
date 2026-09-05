@@ -24,6 +24,10 @@ enum ATSPlatform {
   GREENHOUSE
   LEVER
   ASHBY
+  LINKEDIN
+  INTERNSHALA
+  NAUKRI
+  WELLFOUND
   WORKDAY
   CUSTOM
 }
@@ -38,8 +42,8 @@ model UserProfile {
   linkedinUrl     String
   githubUrl       String
   portfolioUrl    String
-  targetRoles     String[] // e.g. ["Frontend Engineer", "Full Stack Developer"]
-  skills          String[] // Master array of verified candidate skills
+  targetRoles     String[] // e.g. ["Full Stack Engineer", "MERN Stack Developer"]
+  skills          String[] // Master array of verified skills
   yearsExperience Int
   summary         String   @db.Text
   experience      Json     // Array of { company, role, duration, highlights: string[] }
