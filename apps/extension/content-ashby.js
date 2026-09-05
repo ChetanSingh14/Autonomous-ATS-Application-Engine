@@ -1,0 +1,87 @@
+const BACKEND = 'http://localhost:4000/api';
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function setNativeValue(element, value) {
+  const prototype = Object.getPrototypeOf(element);
+  const setter =
+    Object.getOwnPropertyDescriptor(prototype, 'value')?.set ||
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+
+  if (setter) {
+    setter.call(element, value);
+  } else {
+    element.value = value;
+  }
+
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+  element.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+function attachBase64Pdf(fileInputElement, base64Pdf, fileName) {
+  try {
+    const binary = atob(base64Pdf);
+    const array = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      array[i] = binary.charCodeAt(i);
+    }
+
+    const blob = new Blob([array], { type: 'application/pdf' });
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+
+    fileInputElement.files = dataTransfer.files;
+    fileInputElement.dispatchEvent(new Event('change', { bubbles: true }));
+    console.log('[Ashby Runner] Tailored PDF attached to Ashby form successfully.');
+  } catch (err) {
+    console.error('[Ashby Runner Error] PDF attachment failed:', err);
+  }
+}
+
+async function runAshbyAutomator(job, profile) {
+  console.log('[Ashby Runner] Executing Ashby form fill...');
+
+  const fullName = `${profile.firstName} ${profile.lastName}`;
+  const ashbyMappings = [
+    { sel: 'input[name="name"], input[autocomplete="name"]', val: fullName },
+    { sel: 'input[name="email"], input[type="email"]', val: profile.email },
+    { sel: 'input[name="phone"], input[type="tel"]', val: profile.phone },
+    { sel: 'input[name*="linkedin"]', val: profile.linkedinUrl },
+    { sel: 'input[name*="github"]', val: profile.githubUrl },
+  ];
+
+  for (const { sel, val } of ashbyMappings) {
+    const input = document.querySelector(sel);
+    if (input && val) {
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setNativeValue(input, val);
+      await sleep(150 + Math.random() * 100);
+    }
+  }
+
+  // Resume Upload
+  const fileInput = document.querySelector('input[type="file"]');
+  if (fileInput && job.tailoredPdf) {
+    attachBase64Pdf(fileInput, job.tailoredPdf, `${profile.firstName}_${profile.lastName}_Resume.pdf`);
+    await sleep(400);
+  }
+
+  await fetch(`${BACKEND}/jobs/${job.id}/applied`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'SUBMITTED', filledFields: { ashbyFilled: true } }),
+  });
+
+  console.log('[Ashby Runner] Ashby application completed.');
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'EXECUTE_AUTOFILL') {
+    runAshbyAutomator(request.job, request.profile).then(() => {
+      sendResponse({ status: 'COMPLETED' });
+    });
+    return true;
+  }
+});

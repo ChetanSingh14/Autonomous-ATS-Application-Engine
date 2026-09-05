@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Production & Build Outputs
+dist/
+build/
+.next/
+out/
+
+# Environment Variables & Local Secrets (NEVER COMMIT THESE)
+.env
+.env.local
+.env.production
+.env.staging
+*.env
+
+# System & OS Files
+.DS_Store
+Thumbs.db
+
+# Logs & Temporary Files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.task-logs/
+
+# Prisma Generated Files (Optional, keep schema.prisma)
+prisma/migrations/dev.db

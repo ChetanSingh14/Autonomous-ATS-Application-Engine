@@ -1,0 +1,97 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum JobStatus {
+  DISCOVERED
+  EVALUATING
+  REJECTED_LOW_SCORE
+  TAILORING
+  QUEUED_FOR_APPLY
+  SUBMITTING
+  REQUIRES_MANUAL_REVIEW
+  SUBMITTED
+  FAILED
+}
+
+enum ATSPlatform {
+  GREENHOUSE
+  LEVER
+  ASHBY
+  WORKDAY
+  CUSTOM
+}
+
+model UserProfile {
+  id              String   @id @default(uuid())
+  firstName       String
+  lastName        String
+  email           String
+  phone           String
+  location        String
+  linkedinUrl     String
+  githubUrl       String
+  portfolioUrl    String
+  targetRoles     String[] // e.g. ["Frontend Engineer", "Full Stack Developer"]
+  skills          String[] // Master array of verified candidate skills
+  yearsExperience Int
+  summary         String   @db.Text
+  experience      Json     // Array of { company, role, duration, highlights: string[] }
+  projects        Json     // Array of { title, techStack: string[], description: string[] }
+  education       Json     // Array of { institution, degree, year }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model JobPosting {
+  id              String           @id @default(uuid())
+  externalId      String
+  fingerprint     String           @unique // MD5(company + title + location)
+  title           String
+  company         String
+  location        String
+  isRemote        Boolean          @default(false)
+  url             String           @unique
+  atsPlatform     ATSPlatform
+  description     String           @db.Text
+  matchScore      Float?
+  matchReason     String?          @db.Text
+  missingSkills   String[]
+  matchedSkills   String[]
+  status          JobStatus        @default(DISCOVERED)
+  tailoredSummary String?          @db.Text
+  tailoredPdf     String?          @db.Text // Base64 encoded single-column PDF
+  applications    ApplicationLog[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status, atsPlatform])
+  @@index([fingerprint])
+}
+
+model ApplicationLog {
+  id          String     @id @default(uuid())
+  jobId       String
+  job         JobPosting @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status      JobStatus
+  filledFields Json?      // Key-value map of auto-filled selectors
+  errorLog    String?    @db.Text
+  submittedAt DateTime?
+  createdAt   DateTime   @default(now())
+}
+
+model QuestionAnswerCache {
+  id                 String   @id @default(uuid())
+  questionHash       String   @unique // MD5(normalized_question_text)
+  rawQuestion        String   @db.Text
+  inferredFieldType  String   // text | number | select | radio | checkbox
+  generatedAnswer    String   @db.Text
+  userVerified       Boolean  @default(false)
+  createdAt          DateTime @default(now())
+}

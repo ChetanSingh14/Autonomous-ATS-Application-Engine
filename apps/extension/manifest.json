@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "AutoApply Autonomous Agent",
+  "version": "1.0.0",
+  "description": "Autonomous ATS form filler and tailored resume injector.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "alarms",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://boards.greenhouse.io/*",
+    "*://job-boards.greenhouse.io/*",
+    "*://jobs.lever.co/*",
+    "*://*.ashbyhq.com/*",
+    "http://localhost:4000/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://boards.greenhouse.io/*",
+        "*://job-boards.greenhouse.io/*"
+      ],
+      "js": ["content-greenhouse.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://jobs.lever.co/*"
+      ],
+      "js": ["content-lever.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.ashbyhq.com/*"
+      ],
+      "js": ["content-ashby.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AutoApply Status"
+  }
+}
