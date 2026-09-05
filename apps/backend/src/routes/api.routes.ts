@@ -90,6 +90,7 @@ router.post('/jobs/:id/applied', async (req: Request, res: Response) => {
 
 /**
  * GET /api/jobs/dashboard-stats
+ * Aggregates live application metrics and returns postings for dashboard
  */
 router.get('/jobs/dashboard-stats', async (req: Request, res: Response) => {
   try {
@@ -99,8 +100,8 @@ router.get('/jobs/dashboard-stats', async (req: Request, res: Response) => {
     const rejectedCount = await prisma.jobPosting.count({ where: { status: JobStatus.REJECTED_LOW_SCORE } });
 
     const jobs = await prisma.jobPosting.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 50,
+      orderBy: [{ matchScore: 'desc' }, { createdAt: 'desc' }],
+      take: 200,
     });
 
     return res.status(200).json({
@@ -129,10 +130,11 @@ router.get('/jobs', async (req: Request, res: Response) => {
   const { status } = req.query;
 
   try {
-    const whereClause = status ? { status: status as JobStatus } : {};
+    const whereClause = status && status !== 'ALL' ? { status: status as JobStatus } : {};
     const jobs = await prisma.jobPosting.findMany({
       where: whereClause,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ matchScore: 'desc' }, { createdAt: 'desc' }],
+      take: 200,
     });
 
     return res.status(200).json({ jobs });
@@ -190,7 +192,6 @@ router.put('/profile', async (req: Request, res: Response) => {
 
 /**
  * POST /api/profile/parse-resume
- * Uses AITailorService model fallback to parse raw text or PDF Base64 string directly into a structured UserProfile
  */
 router.post('/profile/parse-resume', async (req: Request, res: Response) => {
   const { resumeText, resumePdfBase64 } = req.body;

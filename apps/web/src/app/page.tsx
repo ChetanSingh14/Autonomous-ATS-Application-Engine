@@ -38,7 +38,7 @@ export default function DashboardPage() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/jobs/dashboard-stats');
+      const res = await fetch(`http://localhost:4000/api/jobs/dashboard-stats`);
       if (res.ok) {
         const data = await res.json();
         setStats(data);
@@ -50,11 +50,31 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchJobsByStatus = async (status: string) => {
+    try {
+      const url = status === 'ALL'
+        ? 'http://localhost:4000/api/jobs'
+        : `http://localhost:4000/api/jobs?status=${status}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setStats((prev) => ({ ...prev, jobs: data.jobs || [] }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch jobs by status:', err);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
-    const interval = setInterval(fetchStats, 10000); // Auto-refresh stats every 10s
+    const interval = setInterval(fetchStats, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleTabChange = (status: string) => {
+    setFilterStatus(status);
+    fetchJobsByStatus(status);
+  };
 
   const triggerIngestion = async () => {
     setIngesting(true);
@@ -67,11 +87,6 @@ export default function DashboardPage() {
       setIngesting(false);
     }
   };
-
-  const filteredJobs = stats.jobs.filter((j) => {
-    if (filterStatus === 'ALL') return true;
-    return j.status === filterStatus;
-  });
 
   return (
     <div className="space-y-8">
@@ -97,7 +112,7 @@ export default function DashboardPage() {
         <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-xl">
           <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Discovered Jobs</div>
           <div className="text-3xl font-extrabold mt-2 text-white">{loading ? '--' : stats.discoveredCount}</div>
-          <div className="text-xs text-slate-500 mt-1">Ingested from Greenhouse & Lever</div>
+          <div className="text-xs text-slate-500 mt-1">Ingested from Greenhouse, Lever & Ashby</div>
         </div>
 
         <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-xl">
@@ -127,10 +142,10 @@ export default function DashboardPage() {
             {['ALL', 'QUEUED_FOR_APPLY', 'SUBMITTED', 'REJECTED_LOW_SCORE', 'DISCOVERED'].map((status) => (
               <button
                 key={status}
-                onClick={() => setFilterStatus(status)}
+                onClick={() => handleTabChange(status)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                   filterStatus === status
-                    ? 'bg-slate-700 text-white'
+                    ? 'bg-slate-700 text-white shadow-md'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                 }`}
               >
@@ -152,14 +167,14 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {filteredJobs.length === 0 ? (
+              {stats.jobs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-slate-500">
                     No postings found matching status filter. Click "Ingest Target Job Boards Now" above.
                   </td>
                 </tr>
               ) : (
-                filteredJobs.map((job) => (
+                stats.jobs.map((job) => (
                   <tr key={job.id} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-4 px-6">
                       <div className="font-semibold text-white">{job.title}</div>
