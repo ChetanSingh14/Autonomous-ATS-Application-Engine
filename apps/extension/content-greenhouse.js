@@ -151,14 +151,26 @@ async function runGreenhouseAutomator(job, profile) {
     body: JSON.stringify({ status: 'SUBMITTED', filledFields: { standardMappingsFilled: true } }),
   });
 
-  console.log('[AutoApply Runner] Application filled and logged successfully!');
+  // 5. Automatic Form Submission Click
+  const submitBtn = document.querySelector(
+    '#submit_app, input[type="submit"], button[type="submit"], button#submit, input[value*="Submit"], button[id*="submit"]'
+  );
+  if (submitBtn) {
+    console.log('[AutoApply Runner] Clicking Submit Application button automatically...');
+    submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await sleep(600);
+    submitBtn.click();
+  }
+
+  console.log('[AutoApply Runner] Application filled and submitted successfully!');
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'EXECUTE_AUTOFILL') {
+  if (request.action === 'EXECUTE_AUTOFILL' || request.action === 'EXECUTE_AUTOFILL_AND_SUBMIT') {
     runGreenhouseAutomator(request.job, request.profile).then(() => {
       sendResponse({ status: 'COMPLETED' });
     });
     return true;
   }
 });
+

@@ -74,14 +74,26 @@ async function runAshbyAutomator(job, profile) {
     body: JSON.stringify({ status: 'SUBMITTED', filledFields: { ashbyFilled: true } }),
   });
 
+  // Automatic Form Submission Click
+  const submitBtn = document.querySelector(
+    'button[type="submit"], input[type="submit"], button:has-text("Submit Application")'
+  );
+  if (submitBtn) {
+    console.log('[Ashby Runner] Clicking Submit Application button automatically...');
+    submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await sleep(600);
+    submitBtn.click();
+  }
+
   console.log('[Ashby Runner] Ashby application completed.');
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'EXECUTE_AUTOFILL') {
+  if (request.action === 'EXECUTE_AUTOFILL' || request.action === 'EXECUTE_AUTOFILL_AND_SUBMIT') {
     runAshbyAutomator(request.job, request.profile).then(() => {
       sendResponse({ status: 'COMPLETED' });
     });
     return true;
   }
 });
+

@@ -77,14 +77,26 @@ async function runLeverAutomator(job, profile) {
     body: JSON.stringify({ status: 'SUBMITTED', filledFields: { leverFilled: true } }),
   });
 
+  // Automatic Form Submission Click
+  const submitBtn = document.querySelector(
+    '#btn-submit, button[type="submit"], input[type="submit"], button.template-btn-submit'
+  );
+  if (submitBtn) {
+    console.log('[Lever Runner] Clicking Submit Application button automatically...');
+    submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await sleep(600);
+    submitBtn.click();
+  }
+
   console.log('[Lever Runner] Lever application completed.');
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'EXECUTE_AUTOFILL') {
+  if (request.action === 'EXECUTE_AUTOFILL' || request.action === 'EXECUTE_AUTOFILL_AND_SUBMIT') {
     runLeverAutomator(request.job, request.profile).then(() => {
       sendResponse({ status: 'COMPLETED' });
     });
     return true;
   }
 });
+
