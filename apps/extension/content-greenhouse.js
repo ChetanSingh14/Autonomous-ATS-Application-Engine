@@ -46,6 +46,31 @@ function attachBase64Pdf(fileInputElement, base64Pdf, fileName) {
   }
 }
 
+async function apiCall(endpoint, method = 'GET', body = null) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      {
+        action: 'API_CALL',
+        url: `${BACKEND}${endpoint}`,
+        options: {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        },
+      },
+      (response) => {
+        const err = chrome.runtime.lastError;
+        if (err) return reject(err);
+        if (response && response.success) {
+          resolve(response.data);
+        } else {
+          reject(new Error(response?.error || 'API call failed'));
+        }
+      }
+    );
+  });
+}
+
 /**
  * Automated Greenhouse Form Filler Engine
  */
@@ -56,11 +81,10 @@ async function runGreenhouseAutomator(job, profile) {
   const hasCaptcha = document.querySelector('iframe[src*="recaptcha"], iframe[src*="hcaptcha"]');
   if (hasCaptcha) {
     console.warn('[AutoApply Runner] CAPTCHA challenge detected! Flagging for manual review...');
-    await fetch(`${BACKEND}/jobs/${job.id}/applied`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'REQUIRES_MANUAL_REVIEW', filledFields: { captchaDetected: true } }),
-    });
+    await apiCall(`/jobs/${job.id}/applied`, 'POST', {
+      status: 'REQUIRES_MANUAL_REVIEW',
+      filledFields: { captchaDetected: true },
+    }).catch(() => {});
     return;
   }
 
@@ -102,14 +126,9 @@ async function runGreenhouseAutomator(job, profile) {
 
     if (textInput && textInput.value.trim() === '') {
       try {
-        const res = await fetch(`${BACKEND}/ai/answer-question`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: questionText, fieldType: 'text' }),
-        });
-        const { answer } = await res.json();
-        if (answer) {
-          setNativeValue(textInput, answer);
+        const data = await apiCall('/ai/answer-question', 'POST', { question: questionText, fieldType: 'text' });
+        if (data && data.answer) {
+          setNativeValue(textInput, data.answer);
           await sleep(200);
         }
       } catch (err) {
@@ -121,16 +140,11 @@ async function runGreenhouseAutomator(job, profile) {
           .map((o) => o.text.trim())
           .filter(Boolean);
 
-        const res = await fetch(`${BACKEND}/ai/answer-question`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: questionText, fieldType: 'select', options }),
-        });
-        const { answer } = await res.json();
+        const data = await apiCall('/ai/answer-question', 'POST', { question: questionText, fieldType: 'select', options });
 
-        if (answer) {
+        if (data && data.answer) {
           const matchedIdx = Array.from(select.options).findIndex((o) =>
-            o.text.toLowerCase().includes(answer.toLowerCase())
+            o.text.toLowerCase().includes(data.answer.toLowerCase())
           );
           if (matchedIdx !== -1) {
             select.selectedIndex = matchedIdx;
@@ -145,11 +159,10 @@ async function runGreenhouseAutomator(job, profile) {
   }
 
   // 4. Update Backend DB Status
-  await fetch(`${BACKEND}/jobs/${job.id}/applied`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'SUBMITTED', filledFields: { standardMappingsFilled: true } }),
-  });
+  await apiCall(`/jobs/${job.id}/applied`, 'POST', {
+    status: 'SUBMITTED',
+    filledFields: { standardMappingsFilled: true },
+  }).catch(() => {});
 
   // 5. Automatic Form Submission Click
   const submitBtn = document.querySelector(

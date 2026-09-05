@@ -11,15 +11,9 @@
     "tabs"
   ],
   "host_permissions": [
-    "*://boards.greenhouse.io/*",
-    "*://job-boards.greenhouse.io/*",
-    "*://jobs.lever.co/*",
-    "*://*.ashbyhq.com/*",
-    "*://*.linkedin.com/*",
-    "*://*.internshala.com/*",
-    "*://*.naukri.com/*",
-    "*://*.wellfound.com/*",
-    "http://localhost:4000/*"
+    "<all_urls>",
+    "http://localhost:4000/*",
+    "http://127.0.0.1:4000/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -29,14 +23,18 @@
     {
       "matches": [
         "*://boards.greenhouse.io/*",
-        "*://job-boards.greenhouse.io/*"
+        "*://job-boards.greenhouse.io/*",
+        "*://*.stripe.com/*",
+        "*://*.airbnb.com/*",
+        "<all_urls>"
       ],
       "js": ["content-greenhouse.js"],
       "run_at": "document_idle"
     },
     {
       "matches": [
-        "*://jobs.lever.co/*"
+        "*://jobs.lever.co/*",
+        "*://*.lever.co/*"
       ],
       "js": ["content-lever.js"],
       "run_at": "document_idle"

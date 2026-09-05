@@ -40,6 +40,31 @@ function attachBase64Pdf(fileInputElement, base64Pdf, fileName) {
   }
 }
 
+async function apiCall(endpoint, method = 'GET', body = null) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      {
+        action: 'API_CALL',
+        url: `${BACKEND}${endpoint}`,
+        options: {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        },
+      },
+      (response) => {
+        const err = chrome.runtime.lastError;
+        if (err) return reject(err);
+        if (response && response.success) {
+          resolve(response.data);
+        } else {
+          reject(new Error(response?.error || 'API call failed'));
+        }
+      }
+    );
+  });
+}
+
 async function runAshbyAutomator(job, profile) {
   console.log('[Ashby Runner] Executing Ashby form fill...');
 
@@ -68,11 +93,10 @@ async function runAshbyAutomator(job, profile) {
     await sleep(400);
   }
 
-  await fetch(`${BACKEND}/jobs/${job.id}/applied`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'SUBMITTED', filledFields: { ashbyFilled: true } }),
-  });
+  await apiCall(`/jobs/${job.id}/applied`, 'POST', {
+    status: 'SUBMITTED',
+    filledFields: { ashbyFilled: true },
+  }).catch(() => {});
 
   // Automatic Form Submission Click
   const submitBtn = document.querySelector(
