@@ -119,17 +119,17 @@ export default function DashboardPage() {
             Autonomous multi-portal job ingestion (LinkedIn, Naukri, Wellfound, Greenhouse, Lever, Ashby), fit scoring & tailoring.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
           <button
             onClick={() => setShowIngestModal(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold text-xs tracking-wide transition shadow-lg shadow-emerald-900/30"
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold text-xs tracking-wide transition shadow-lg shadow-emerald-900/30 w-full sm:w-auto text-center"
           >
             + Ingest Custom Job (LinkedIn/Naukri/Wellfound)
           </button>
           <button
             onClick={triggerIngestion}
             disabled={ingesting}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-semibold text-xs tracking-wide transition shadow-lg shadow-sky-900/30 disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-semibold text-xs tracking-wide transition shadow-lg shadow-sky-900/30 disabled:opacity-50 w-full sm:w-auto text-center"
           >
             {ingesting ? (
               <>

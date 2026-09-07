@@ -60,10 +60,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       </div>
 
       {/* Header Info */}
-      <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-slate-900/60 border border-slate-800 p-4 sm:p-6 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-extrabold text-white">{job.title}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-white">{job.title}</h1>
             <span className="text-xs font-mono bg-slate-800 border border-slate-700 px-2.5 py-1 rounded text-slate-300">
               {job.atsPlatform}
             </span>
@@ -73,11 +73,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="text-right">
+        <div className="flex items-center gap-3 flex-wrap w-full md:w-auto justify-between md:justify-end">
+          <div className="text-left md:text-right">
             <div className="text-xs uppercase text-slate-400 font-semibold">Match Fit Score</div>
             <div
-              className={`text-2xl font-black ${
+              className={`text-xl sm:text-2xl font-black ${
                 (job.matchScore || 0) >= 80
                   ? 'text-emerald-400'
                   : (job.matchScore || 0) >= 65
@@ -89,33 +89,35 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             </div>
           </div>
 
-          {job.status !== 'REJECTED_LOW_SCORE' && job.status !== 'SUBMITTED' && (
-            <button
-              onClick={handleReject}
-              disabled={rejecting}
-              className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-bold transition disabled:opacity-50"
-            >
-              {rejecting ? 'Rejecting...' : '🚫 Manual Reject Job'}
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {job.status !== 'REJECTED_LOW_SCORE' && job.status !== 'SUBMITTED' && (
+              <button
+                onClick={handleReject}
+                disabled={rejecting}
+                className="px-3 sm:px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-bold transition disabled:opacity-50"
+              >
+                {rejecting ? 'Rejecting...' : '🚫 Manual Reject Job'}
+              </button>
+            )}
 
-          {job.tailoredPdf && (
-            <button
-              onClick={downloadPdf}
-              className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold transition shadow-md shadow-sky-900/20"
-            >
-              📄 Download Tailored PDF
-            </button>
-          )}
+            {job.tailoredPdf && (
+              <button
+                onClick={downloadPdf}
+                className="px-3 sm:px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold transition shadow-md shadow-sky-900/20"
+              >
+                📄 Download Tailored PDF
+              </button>
+            )}
 
-          <a
-            href={job.url}
-            target="_blank"
-            rel="noreferrer"
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition border border-slate-700"
-          >
-            🔗 Open ATS Page
-          </a>
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 sm:px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition border border-slate-700"
+            >
+              🔗 Open ATS Page
+            </a>
+          </div>
         </div>
       </div>
 
