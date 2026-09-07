@@ -2,35 +2,34 @@
 
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
+import { FrontendJobService, JobPosting } from '../../../services/job.service';
 
 export default function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const jobId = resolvedParams.id;
 
-  const [job, setJob] = useState<any>(null);
+  const [job, setJob] = useState<JobPosting | null>(null);
   const [loading, setLoading] = useState(true);
+  const [rejecting, setRejecting] = useState(false);
 
   useEffect(() => {
-    fetch(`http://localhost:4000/api/jobs/${jobId}`)
-      .then((res) => res.json())
+    FrontendJobService.getJobById(jobId)
       .then((data) => {
-        if (data.job) setJob(data.job);
+        if (data) setJob(data);
       })
-      .catch((err) => console.error('Failed to load job details:', err))
+      .catch((err) => console.warn('[JobDetail Warning] Failed to load job:', err))
       .finally(() => setLoading(false));
   }, [jobId]);
-
-  const [rejecting, setRejecting] = useState(false);
 
   const handleReject = async () => {
     setRejecting(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/jobs/${jobId}/reject`, { method: 'POST' });
-      if (res.ok) {
-        setJob((prev: any) => ({ ...prev, status: 'REJECTED_LOW_SCORE' }));
+      const success = await FrontendJobService.rejectJob(jobId);
+      if (success) {
+        setJob((prev: any) => (prev ? { ...prev, status: 'REJECTED_LOW_SCORE' } : null));
       }
     } catch (err) {
-      console.error('Failed to reject job:', err);
+      console.warn('[JobDetail Warning] Failed to reject job:', err);
     } finally {
       setRejecting(false);
     }
@@ -70,7 +69,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             </span>
           </div>
           <p className="text-slate-400 text-sm mt-1">
-            {job.company} &bull; {job.location} {job.isRemote && '(Remote)'}
+            {job.company} &bull; {job.location}
           </p>
         </div>
 
@@ -86,7 +85,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   : 'text-rose-400'
               }`}
             >
-              {job.matchScore ? `${job.matchScore}%` : 'Evaluating'}
+              {job.matchScore ? `${Math.round(job.matchScore)}%` : 'Evaluating'}
             </div>
           </div>
 
@@ -166,7 +165,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Original Job Description</h3>
         <div
           className="text-xs text-slate-400 space-y-2 max-h-96 overflow-y-auto pr-2 border-t border-slate-800/80 pt-3"
-          dangerouslySetInnerHTML={{ __html: job.description }}
+          dangerouslySetInnerHTML={{ __html: job.description || '' }}
         />
       </div>
     </div>

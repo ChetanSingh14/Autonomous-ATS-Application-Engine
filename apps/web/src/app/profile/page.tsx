@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { FrontendProfileService, UserProfile } from '../../services/profile.service';
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -13,28 +14,24 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch('http://localhost:4000/api/profile')
-      .then((res) => res.json())
+    FrontendProfileService.getProfile()
       .then((data) => {
-        if (data.profile) setProfile(data.profile);
+        if (data) setProfile(data);
       })
-      .catch((err) => console.error('Failed to load profile:', err))
+      .catch((err) => console.warn('[Profile Warning] Failed to load profile:', err))
       .finally(() => setLoading(false));
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!profile) return;
     setSaving(true);
     setMessage('');
 
     try {
-      const res = await fetch('http://localhost:4000/api/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile),
-      });
-
-      if (res.ok) {
+      const updated = await FrontendProfileService.updateProfile(profile);
+      if (updated) {
+        setProfile(updated);
         setMessage('✅ Master Profile successfully updated!');
       } else {
         setMessage('❌ Failed to update profile');
@@ -57,20 +54,14 @@ export default function ProfilePage() {
       const reader = new FileReader();
       reader.onload = async () => {
         const base64String = (reader.result as string).split(',')[1];
+        const parsed = await FrontendProfileService.parseResume({ resumePdfBase64: base64String });
 
-        const res = await fetch('http://localhost:4000/api/profile/parse-resume', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resumePdfBase64: base64String }),
-        });
-
-        const data = await res.json();
-        if (res.ok && data.profile) {
-          setProfile(data.profile);
+        if (parsed) {
+          setProfile(parsed);
           setMessage('🎉 Success! Your PDF resume has been parsed and set as your Master Profile!');
           setShowUploadModal(false);
         } else {
-          setMessage(`❌ Parsing failed: ${data.error || 'Unknown error'}`);
+          setMessage('❌ Parsing failed or returned null response.');
         }
         setParsing(false);
       };
@@ -88,20 +79,14 @@ export default function ProfilePage() {
     setMessage('');
 
     try {
-      const res = await fetch('http://localhost:4000/api/profile/parse-resume', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resumeText: resumeTextInput }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.profile) {
-        setProfile(data.profile);
+      const parsed = await FrontendProfileService.parseResume({ resumeText: resumeTextInput });
+      if (parsed) {
+        setProfile(parsed);
         setMessage('✨ Resume text parsed and updated in Master Profile!');
         setShowUploadModal(false);
         setResumeTextInput('');
       } else {
-        setMessage(`❌ Resume parsing failed: ${data.error || 'Unknown error'}`);
+        setMessage('❌ Resume text parsing failed.');
       }
     } catch (err: any) {
       setMessage(`❌ Error parsing resume: ${err.message}`);
