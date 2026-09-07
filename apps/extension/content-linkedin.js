@@ -80,11 +80,52 @@ async function runLinkedInAutomator(job, profile) {
   console.log('[LinkedIn Runner] LinkedIn application logged.');
 }
 
+// Auto-capture LinkedIn Job Details when browsing LinkedIn jobs
+async function autoCaptureLinkedInJob() {
+  try {
+    const titleEl = document.querySelector('.job-details-jobs-unified-top-card__job-title, .jobs-unified-top-card__job-title, h1');
+    const companyEl = document.querySelector('.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, .jobs-postings-header__company-name');
+    const locationEl = document.querySelector('.job-details-jobs-unified-top-card__bullet, .jobs-unified-top-card__bullet');
+    const descEl = document.querySelector('#job-details, .jobs-description-content, .jobs-box__html-content');
+
+    if (titleEl && (companyEl || descEl)) {
+      const title = titleEl.innerText.trim();
+      const company = companyEl ? companyEl.innerText.trim() : 'Company';
+      const location = locationEl ? locationEl.innerText.trim() : 'Remote';
+      const description = descEl ? descEl.innerHTML.trim() : title;
+      const url = window.location.href;
+
+      chrome.runtime.sendMessage({
+        action: 'API_CALL',
+        url: `${BACKEND}/jobs/ingest-custom`,
+        options: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            company,
+            location,
+            url,
+            atsPlatform: 'LINKEDIN',
+            description,
+          }),
+        },
+      });
+      console.log(`[LinkedIn Auto-Capture] Captured job: '${title}' at '${company}'`);
+    }
+  } catch (err) {
+    // Ignore extraction errors on non-job pages
+  }
+}
+
+setTimeout(autoCaptureLinkedInJob, 2000);
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'EXECUTE_AUTOFILL') {
+  if (request.action === 'EXECUTE_AUTOFILL' || request.action === 'EXECUTE_AUTOFILL_AND_SUBMIT') {
     runLinkedInAutomator(request.job, request.profile).then(() => {
       sendResponse({ status: 'COMPLETED' });
     });
     return true;
   }
 });
+

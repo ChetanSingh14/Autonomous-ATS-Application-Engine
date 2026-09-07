@@ -58,11 +58,52 @@ async function runWellfoundAutomator(job, profile) {
   console.log('[Wellfound Runner] Wellfound application logged.');
 }
 
+// Auto-capture Wellfound Job Details when browsing Wellfound jobs
+async function autoCaptureWellfoundJob() {
+  try {
+    const titleEl = document.querySelector('h1, h2.styles_title__123, [class*="jobTitle"]');
+    const companyEl = document.querySelector('[class*="companyName"], h2 a, [class*="startupName"]');
+    const locationEl = document.querySelector('[class*="locationText"], [class*="location"]');
+    const descEl = document.querySelector('[class*="descriptionText"], [class*="jobDescription"]');
+
+    if (titleEl && (companyEl || descEl)) {
+      const title = titleEl.innerText.trim();
+      const company = companyEl ? companyEl.innerText.trim() : 'Company';
+      const location = locationEl ? locationEl.innerText.trim() : 'Remote';
+      const description = descEl ? descEl.innerHTML.trim() : title;
+      const url = window.location.href;
+
+      chrome.runtime.sendMessage({
+        action: 'API_CALL',
+        url: `${BACKEND}/jobs/ingest-custom`,
+        options: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            company,
+            location,
+            url,
+            atsPlatform: 'WELLFOUND',
+            description,
+          }),
+        },
+      });
+      console.log(`[Wellfound Auto-Capture] Captured job: '${title}' at '${company}'`);
+    }
+  } catch (err) {
+    // Ignore extraction errors on non-job pages
+  }
+}
+
+setTimeout(autoCaptureWellfoundJob, 2000);
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'EXECUTE_AUTOFILL') {
+  if (request.action === 'EXECUTE_AUTOFILL' || request.action === 'EXECUTE_AUTOFILL_AND_SUBMIT') {
     runWellfoundAutomator(request.job, request.profile).then(() => {
       sendResponse({ status: 'COMPLETED' });
     });
     return true;
   }
 });
+

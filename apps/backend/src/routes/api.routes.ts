@@ -260,6 +260,40 @@ router.post('/profile/parse-resume', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/jobs/ingest-custom
+ * Ingests individual job postings from LinkedIn, Naukri, Wellfound, Internshala, Workday, or Dashboard
+ */
+router.post('/jobs/ingest-custom', async (req: Request, res: Response) => {
+  const { title, company, location, url, atsPlatform, description, isRemote, externalId } = req.body;
+
+  if (!url || !title) {
+    return res.status(400).json({ error: 'Both title and url are required fields.' });
+  }
+
+  try {
+    const result = await ingestionService.ingestCustomJob({
+      title,
+      company: company || 'Company',
+      location: location || 'Remote',
+      url,
+      atsPlatform,
+      description: description || `<p>${title} at ${company || 'Company'}</p>`,
+      isRemote,
+      externalId,
+    });
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.message });
+    }
+
+    return res.status(200).json({ success: true, jobId: result.jobId, message: result.message });
+  } catch (error: any) {
+    console.error('[API Error] /jobs/ingest-custom:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/ingest
  */
 router.post('/ingest', async (req: Request, res: Response) => {
@@ -270,6 +304,8 @@ router.post('/ingest', async (req: Request, res: Response) => {
     if (companySlug) {
       if (platform === 'LEVER') {
         count = await ingestionService.fetchLeverBoard(companySlug);
+      } else if (platform === 'ASHBY') {
+        count = await ingestionService.fetchAshbyBoard(companySlug);
       } else {
         count = await ingestionService.fetchGreenhouseBoard(companySlug);
       }
@@ -285,3 +321,4 @@ router.post('/ingest', async (req: Request, res: Response) => {
 });
 
 export default router;
+

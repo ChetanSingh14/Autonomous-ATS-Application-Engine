@@ -133,6 +133,47 @@ export default function DashboardPage() {
     }
   };
 
+  const [showIngestModal, setShowIngestModal] = useState(false);
+  const [customForm, setCustomForm] = useState({
+    title: '',
+    company: '',
+    location: 'Remote',
+    url: '',
+    atsPlatform: 'LINKEDIN',
+    description: '',
+  });
+  const [customIngesting, setCustomIngesting] = useState(false);
+
+  const handleCustomIngestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customForm.title || !customForm.url) return;
+
+    setCustomIngesting(true);
+    try {
+      const res = await fetch('http://localhost:4000/api/jobs/ingest-custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customForm),
+      });
+      if (res.ok) {
+        setShowIngestModal(false);
+        setCustomForm({
+          title: '',
+          company: '',
+          location: 'Remote',
+          url: '',
+          atsPlatform: 'LINKEDIN',
+          description: '',
+        });
+        await fetchStats();
+      }
+    } catch (err) {
+      console.error('Custom job ingestion error:', err);
+    } finally {
+      setCustomIngesting(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Top Banner */}
@@ -142,27 +183,127 @@ export default function DashboardPage() {
             Application Pipeline Overview
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Autonomous job ingestion, fit scoring, truth-constrained tailoring, and browser injection.
+            Autonomous multi-portal job ingestion (LinkedIn, Naukri, Wellfound, Greenhouse, Lever, Ashby), fit scoring & tailoring.
           </p>
         </div>
-        <button
-          onClick={triggerIngestion}
-          disabled={ingesting}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-semibold text-xs tracking-wide transition shadow-lg shadow-sky-900/30 disabled:opacity-50"
-        >
-          {ingesting ? (
-            <>
-              <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Ingesting Board Feeds...
-            </>
-          ) : (
-            '🚀 Ingest Target Job Boards Now'
-          )}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowIngestModal(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold text-xs tracking-wide transition shadow-lg shadow-emerald-900/30"
+          >
+            + Ingest Custom Job (LinkedIn/Naukri/Wellfound)
+          </button>
+          <button
+            onClick={triggerIngestion}
+            disabled={ingesting}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-semibold text-xs tracking-wide transition shadow-lg shadow-sky-900/30 disabled:opacity-50"
+          >
+            {ingesting ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Ingesting Board Feeds...
+              </>
+            ) : (
+              '🚀 Ingest 50+ Tech Boards'
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Modal for Quick Ingest Custom Job */}
+      {showIngestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-white">Ingest Custom Job Posting</h3>
+              <button onClick={() => setShowIngestModal(false)} className="text-slate-400 hover:text-white text-sm">✕</button>
+            </div>
+            <form onSubmit={handleCustomIngestSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Job Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Senior Full Stack Engineer"
+                  value={customForm.title}
+                  onChange={(e) => setCustomForm({ ...customForm, title: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Company</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Stripe / Meta"
+                    value={customForm.company}
+                    onChange={(e) => setCustomForm({ ...customForm, company: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Platform</label>
+                  <select
+                    value={customForm.atsPlatform}
+                    onChange={(e) => setCustomForm({ ...customForm, atsPlatform: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
+                  >
+                    <option value="LINKEDIN">LinkedIn</option>
+                    <option value="NAUKRI">Naukri</option>
+                    <option value="WELLFOUND">Wellfound</option>
+                    <option value="INTERNSHALA">Internshala</option>
+                    <option value="WORKDAY">Workday</option>
+                    <option value="GREENHOUSE">Greenhouse</option>
+                    <option value="LEVER">Lever</option>
+                    <option value="ASHBY">Ashby</option>
+                    <option value="CUSTOM">Custom</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Job Application URL *</label>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://www.linkedin.com/jobs/view/..."
+                  value={customForm.url}
+                  onChange={(e) => setCustomForm({ ...customForm, url: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Job Description</label>
+                <textarea
+                  rows={4}
+                  placeholder="Paste job description bullet points & requirements here..."
+                  value={customForm.description}
+                  onChange={(e) => setCustomForm({ ...customForm, description: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowIngestModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={customIngesting}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-lg shadow-emerald-900/30 disabled:opacity-50"
+                >
+                  {customIngesting ? 'Ingesting...' : 'Ingest & Tailor Job'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Metric Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

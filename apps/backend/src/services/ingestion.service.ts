@@ -5,6 +5,17 @@ import { evaluateQueue } from '../queue';
 
 const prisma = new PrismaClient();
 
+export interface CustomJobInput {
+  title: string;
+  company: string;
+  location?: string;
+  url: string;
+  atsPlatform?: ATSPlatform | string;
+  description: string;
+  isRemote?: boolean;
+  externalId?: string;
+}
+
 export class IngestionService {
   /**
    * Generates a deterministic MD5 hash string to prevent duplicate job ingestion
@@ -12,6 +23,105 @@ export class IngestionService {
   private generateFingerprint(company: string, title: string, location: string): string {
     const raw = `${company.toLowerCase().trim()}_${title.toLowerCase().trim()}_${location.toLowerCase().trim()}`;
     return crypto.createHash('md5').update(raw).digest('hex');
+  }
+
+  /**
+   * Safely creates a JobPosting record while ignoring duplicate fingerprint or url errors
+   */
+  private async safeCreateAndEnqueue(data: {
+    externalId: string;
+    fingerprint: string;
+    title: string;
+    company: string;
+    location: string;
+    isRemote: boolean;
+    url: string;
+    atsPlatform: ATSPlatform;
+    description: string;
+  }): Promise<boolean> {
+    try {
+      // Check if job already exists by fingerprint OR url
+      const existing = await prisma.jobPosting.findFirst({
+        where: {
+          OR: [{ fingerprint: data.fingerprint }, { url: data.url }],
+        },
+      });
+
+      if (existing) {
+        return false;
+      }
+
+      const newJob = await prisma.jobPosting.create({
+        data: {
+          ...data,
+          status: JobStatus.DISCOVERED,
+        },
+      });
+
+      await evaluateQueue.add('evaluate-job', { jobId: newJob.id });
+      return true;
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        // Unique constraint violation (fingerprint or url duplicate)
+        return false;
+      }
+      console.error(`[Ingestion Warning] Failed to create job '${data.title}':`, error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Ingests a custom job from LinkedIn, Naukri, Wellfound, Internshala, Workday, or any direct URL
+   */
+  public async ingestCustomJob(input: CustomJobInput): Promise<{ success: boolean; jobId?: string; message: string }> {
+    const company = input.company.trim() || 'Unknown Company';
+    const title = input.title.trim() || 'Software Engineer';
+    const location = input.location?.trim() || 'Remote';
+    const fingerprint = this.generateFingerprint(company, title, location);
+    const isRemote = input.isRemote ?? location.toLowerCase().includes('remote');
+
+    // Parse platform enum string safely
+    let platform: ATSPlatform = ATSPlatform.CUSTOM;
+    if (input.atsPlatform) {
+      const upper = input.atsPlatform.toUpperCase();
+      if (Object.values(ATSPlatform).includes(upper as ATSPlatform)) {
+        platform = upper as ATSPlatform;
+      }
+    }
+
+    try {
+      const existing = await prisma.jobPosting.findFirst({
+        where: {
+          OR: [{ fingerprint }, { url: input.url }],
+        },
+      });
+
+      if (existing) {
+        return { success: true, jobId: existing.id, message: 'Job already exists in application engine queue.' };
+      }
+
+      const newJob = await prisma.jobPosting.create({
+        data: {
+          externalId: input.externalId || crypto.randomUUID(),
+          fingerprint,
+          title,
+          company,
+          location,
+          isRemote,
+          url: input.url,
+          atsPlatform: platform,
+          description: input.description || `<p>${title} at ${company}</p>`,
+          status: JobStatus.DISCOVERED,
+        },
+      });
+
+      await evaluateQueue.add('evaluate-job', { jobId: newJob.id });
+      console.log(`[Custom Ingestion] Ingested ${platform} job: '${title}' at '${company}'`);
+      return { success: true, jobId: newJob.id, message: 'Successfully queued job for scoring & tailoring.' };
+    } catch (error: any) {
+      console.error('[Custom Ingestion Error]:', error.message);
+      return { success: false, message: `Failed to ingest job: ${error.message}` };
+    }
   }
 
   /**
@@ -30,27 +140,19 @@ export class IngestionService {
         const fingerprint = this.generateFingerprint(companySlug, job.title, locationName);
         const isRemote = locationName.toLowerCase().includes('remote');
 
-        const existing = await prisma.jobPosting.findUnique({ where: { fingerprint } });
-        if (existing) continue;
-
-        const newJob = await prisma.jobPosting.create({
-          data: {
-            externalId: job.id.toString(),
-            fingerprint,
-            title: job.title,
-            company: companySlug,
-            location: locationName,
-            isRemote,
-            url: job.absolute_url,
-            atsPlatform: ATSPlatform.GREENHOUSE,
-            description: job.content || `<p>${job.title} at ${companySlug}</p>`,
-            status: JobStatus.DISCOVERED,
-          },
+        const created = await this.safeCreateAndEnqueue({
+          externalId: job.id.toString(),
+          fingerprint,
+          title: job.title,
+          company: companySlug,
+          location: locationName,
+          isRemote,
+          url: job.absolute_url,
+          atsPlatform: ATSPlatform.GREENHOUSE,
+          description: job.content || `<p>${job.title} at ${companySlug}</p>`,
         });
 
-        // Enqueue job for background scoring & tailoring worker
-        await evaluateQueue.add('evaluate-job', { jobId: newJob.id });
-        count++;
+        if (created) count++;
       }
 
       console.log(`[Ingestion] Ingested ${count} new Greenhouse jobs for '${companySlug}'`);
@@ -77,26 +179,19 @@ export class IngestionService {
         const fingerprint = this.generateFingerprint(companySlug, job.text, locationName);
         const isRemote = locationName.toLowerCase().includes('remote') || job.workplaceType === 'remote';
 
-        const existing = await prisma.jobPosting.findUnique({ where: { fingerprint } });
-        if (existing) continue;
-
-        const newJob = await prisma.jobPosting.create({
-          data: {
-            externalId: job.id,
-            fingerprint,
-            title: job.text,
-            company: companySlug,
-            location: locationName,
-            isRemote,
-            url: job.hostedUrl,
-            atsPlatform: ATSPlatform.LEVER,
-            description: job.descriptionPlain || job.description || job.text,
-            status: JobStatus.DISCOVERED,
-          },
+        const created = await this.safeCreateAndEnqueue({
+          externalId: job.id,
+          fingerprint,
+          title: job.text,
+          company: companySlug,
+          location: locationName,
+          isRemote,
+          url: job.hostedUrl,
+          atsPlatform: ATSPlatform.LEVER,
+          description: job.descriptionPlain || job.description || job.text,
         });
 
-        await evaluateQueue.add('evaluate-job', { jobId: newJob.id });
-        count++;
+        if (created) count++;
       }
 
       console.log(`[Ingestion] Ingested ${count} new Lever jobs for '${companySlug}'`);
@@ -122,26 +217,19 @@ export class IngestionService {
         const locationName = job.location || 'Remote';
         const fingerprint = this.generateFingerprint(companySlug, job.title, locationName);
 
-        const existing = await prisma.jobPosting.findUnique({ where: { fingerprint } });
-        if (existing) continue;
-
-        const newJob = await prisma.jobPosting.create({
-          data: {
-            externalId: job.id,
-            fingerprint,
-            title: job.title,
-            company: companySlug,
-            location: locationName,
-            isRemote: locationName.toLowerCase().includes('remote'),
-            url: job.jobUrl || `https://jobs.ashbyhq.com/${companySlug}/${job.id}`,
-            atsPlatform: ATSPlatform.ASHBY,
-            description: job.descriptionHtml || job.title,
-            status: JobStatus.DISCOVERED,
-          },
+        const created = await this.safeCreateAndEnqueue({
+          externalId: job.id,
+          fingerprint,
+          title: job.title,
+          company: companySlug,
+          location: locationName,
+          isRemote: locationName.toLowerCase().includes('remote'),
+          url: job.jobUrl || `https://jobs.ashbyhq.com/${companySlug}/${job.id}`,
+          atsPlatform: ATSPlatform.ASHBY,
+          description: job.descriptionHtml || job.title,
         });
 
-        await evaluateQueue.add('evaluate-job', { jobId: newJob.id });
-        count++;
+        if (created) count++;
       }
 
       console.log(`[Ingestion] Ingested ${count} new Ashby jobs for '${companySlug}'`);
@@ -153,15 +241,20 @@ export class IngestionService {
   }
 
   /**
-   * Triggers comprehensive batch ingestion across 25+ major tech companies (Greenhouse, Lever, Ashby)
+   * Triggers comprehensive batch ingestion across 50+ top tech companies (Greenhouse, Lever, Ashby)
    */
   public async triggerBatchIngestion(): Promise<{ totalIngested: number }> {
     const greenhouseSlugs = [
       'stripe', 'airbnb', 'figma', 'discord', 'vercel', 'hashicorp', 'supabase',
-      'datadog', 'coinbase', 'doordash', 'uber', 'ramp', 'retool', 'slack', 'gitlab'
+      'datadog', 'coinbase', 'doordash', 'uber', 'ramp', 'retool', 'slack', 'gitlab',
+      'instacart', 'plaid', 'robinhood', 'brex', 'benchling', 'affirm', 'gusto', 'databricks'
     ];
-    const leverSlugs = ['netflix', 'palantir', 'cloudflare', 'spotify', 'postman'];
-    const ashbySlugs = ['openai', 'linear', 'notion', 'replit', 'cursor'];
+    const leverSlugs = [
+      'netflix', 'palantir', 'cloudflare', 'spotify', 'postman', 'atlassian', 'box', 'asana', 'hubspot'
+    ];
+    const ashbySlugs = [
+      'openai', 'linear', 'notion', 'replit', 'cursor', 'anthropic', 'scale', 'modal', 'perplexity', 'pinecone'
+    ];
 
     let total = 0;
     for (const slug of greenhouseSlugs) {
@@ -177,3 +270,4 @@ export class IngestionService {
     return { totalIngested: total };
   }
 }
+

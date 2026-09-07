@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq';
 import { PrismaClient, JobStatus } from '@prisma/client';
-import { redisConnection } from '../queue';
+import { redisOptions } from '../queue';
 import { AITailorService } from '../services/ai-tailor.service';
 import { PDFGeneratorService } from '../services/pdf-generator.service';
 
@@ -92,7 +92,7 @@ export const applicationWorker = new Worker(
     }
   },
   {
-    connection: redisConnection,
+    connection: redisOptions,
     concurrency: 2, // Maximum 2 concurrent tailoring tasks to respect rate limits
   }
 );
