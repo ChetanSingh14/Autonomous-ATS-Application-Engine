@@ -1,6 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import axios from 'axios';
-import { config } from '../config';
+import { IAIProvider } from '../providers/ai/ai.provider.interface';
+import { GeminiProvider } from '../providers/ai/gemini.provider';
 
 export interface TailoredOutput {
   atsScore: number;
@@ -23,103 +22,10 @@ export interface TailoredOutput {
 }
 
 export class AITailorService {
-  private genAI: GoogleGenerativeAI;
+  private aiProvider: IAIProvider;
 
-  constructor() {
-    this.genAI = new GoogleGenerativeAI(config.geminiApiKey);
-  }
-
-  /**
-   * Supports both standard AI Studio API keys (AIzaSy...) and OAuth Auth keys (AQ.Ab8...)
-   */
-  public async generateContentWithFallback(prompt: string): Promise<string> {
-    const candidateModels = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-2.5-flash',
-      'gemini-1.5-flash-8b',
-      'gemini-1.5-pro',
-      'gemini-pro',
-    ];
-
-    const apiKey = config.geminiApiKey.trim();
-    const isOAuthAuthKey = apiKey.startsWith('AQ.');
-
-    // Method 1: If using OAuth Auth Key (AQ.Ab8...), send Bearer Token header
-    if (isOAuthAuthKey) {
-      for (const modelName of candidateModels) {
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
-          const response = await axios.post(
-            url,
-            {
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
-            },
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${apiKey}`,
-                'x-goog-api-key': apiKey,
-              },
-              timeout: 15000,
-            }
-          );
-
-          const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text && text.trim().startsWith('{')) {
-            return text;
-          }
-        } catch (err: any) {
-          // Try next candidate model
-        }
-      }
-    }
-
-    // Method 2: SDK call with standard API key (AIzaSy...)
-    for (const modelName of candidateModels) {
-      try {
-        const model = this.genAI.getGenerativeModel({
-          model: modelName,
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.2,
-          },
-        });
-
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        if (text && text.trim().startsWith('{')) {
-          return text;
-        }
-      } catch (err: any) {
-        // Try next model
-      }
-    }
-
-    // Method 3: Standard REST API call with ?key parameter fallback
-    for (const modelName of candidateModels) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-        const response = await axios.post(
-          url,
-          {
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
-          },
-          { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
-        );
-
-        const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text && text.trim().startsWith('{')) {
-          return text;
-        }
-      } catch (err: any) {
-        // Try next REST model
-      }
-    }
-
-    throw new Error('All Gemini API connection methods failed. Please check your key in Google AI Studio.');
+  constructor(aiProvider?: IAIProvider) {
+    this.aiProvider = aiProvider || new GeminiProvider();
   }
 
   /**
@@ -171,7 +77,7 @@ Respond with JSON matching this exact schema:
 }
 `;
 
-    const text = await this.generateContentWithFallback(prompt);
+    const text = await this.aiProvider.generateContent(prompt);
     return JSON.parse(text);
   }
 
@@ -188,7 +94,7 @@ Respond with JSON matching this exact schema:
       'software', 'code', 'react', 'node', 'typescript', 'javascript', 'python', 'java', 'web', 'data', 'cloud', 'systems', 'android'
     ];
     const lowerTitle = jobTitle.toLowerCase();
-    const isDevRole = developerKeywords.some(kw => lowerTitle.includes(kw));
+    const isDevRole = developerKeywords.some((kw) => lowerTitle.includes(kw));
 
     if (!isDevRole) {
       console.log(`[Role Filter] Non-developer title detected: '${jobTitle}' -> Auto-rejecting with 0% score.`);
@@ -227,7 +133,6 @@ Respond with a JSON object matching this exact schema:
   "missingSkills": ["string"],
   "matchedSkills": ["string"],
   "summary": "string",
-  "skills": ["string"],
   "experience": [
     {
       "company": "string",
@@ -247,7 +152,7 @@ Respond with a JSON object matching this exact schema:
 `;
 
     try {
-      const text = await this.generateContentWithFallback(prompt);
+      const text = await this.aiProvider.generateContent(prompt);
       return JSON.parse(text) as TailoredOutput;
     } catch (error: any) {
       console.error('[AITailorService Error]:', error.message);
@@ -265,7 +170,7 @@ Respond with a JSON object matching this exact schema:
   }
 
   /**
-   * Resolves dynamic screening questions asked on job application forms (e.g. Greenhouse/Lever)
+   * Resolves dynamic screening questions asked on job application forms
    */
   public async answerDynamicQuestion(
     question: string,
@@ -296,7 +201,7 @@ Return JSON in this format:
 `;
 
     try {
-      const text = await this.generateContentWithFallback(prompt);
+      const text = await this.aiProvider.generateContent(prompt);
       const parsed = JSON.parse(text);
       return parsed.answer || '';
     } catch (error: any) {

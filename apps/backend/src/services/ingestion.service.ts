@@ -1,9 +1,8 @@
 import axios from 'axios';
 import crypto from 'crypto';
-import { PrismaClient, ATSPlatform, JobStatus } from '@prisma/client';
+import { ATSPlatform, JobStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { evaluateQueue } from '../queue';
-
-const prisma = new PrismaClient();
 
 export interface CustomJobInput {
   title: string;
@@ -40,7 +39,6 @@ export class IngestionService {
     description: string;
   }): Promise<boolean> {
     try {
-      // Check if job already exists by fingerprint OR url
       const existing = await prisma.jobPosting.findFirst({
         where: {
           OR: [{ fingerprint: data.fingerprint }, { url: data.url }],
@@ -62,7 +60,6 @@ export class IngestionService {
       return true;
     } catch (error: any) {
       if (error.code === 'P2002') {
-        // Unique constraint violation (fingerprint or url duplicate)
         return false;
       }
       console.error(`[Ingestion Warning] Failed to create job '${data.title}':`, error.message);
@@ -80,7 +77,6 @@ export class IngestionService {
     const fingerprint = this.generateFingerprint(company, title, location);
     const isRemote = input.isRemote ?? location.toLowerCase().includes('remote');
 
-    // Parse platform enum string safely
     let platform: ATSPlatform = ATSPlatform.CUSTOM;
     if (input.atsPlatform) {
       const upper = input.atsPlatform.toUpperCase();
@@ -270,4 +266,3 @@ export class IngestionService {
     return { totalIngested: total };
   }
 }
-

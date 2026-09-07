@@ -1,10 +1,10 @@
 import { Worker, Job } from 'bullmq';
-import { PrismaClient, JobStatus } from '@prisma/client';
+import { JobStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { redisOptions } from '../queue';
 import { AITailorService } from '../services/ai-tailor.service';
 import { PDFGeneratorService } from '../services/pdf-generator.service';
 
-const prisma = new PrismaClient();
 const tailorService = new AITailorService();
 const pdfService = new PDFGeneratorService();
 
